@@ -87,7 +87,7 @@ st.sidebar.title("テスト設定")
 
 test_type = st.sidebar.radio("出題形式", ["古文単語 → 意味", "意味 → 古文単語"])
 
-# 出題範囲
+# 出題範囲設定
 range_mode = st.sidebar.radio("出題範囲", ["100語ごと", "自由指定"])
 
 if range_mode == "100語ごと":
@@ -148,7 +148,7 @@ if st.button("テストを開始"):
     st.session_state.options = options
 
 # --------------------------------
-# エラー防止初期化
+# セッション初期化（エラー防止用）
 # --------------------------------
 if "test_started" not in st.session_state:
     st.session_state.test_started = False
@@ -158,7 +158,7 @@ if "finished" not in st.session_state:
     st.session_state.finished = False
 
 # --------------------------------
-# 問題更新
+# 問題更新関数
 # --------------------------------
 def update_question(ans):
     q_data = st.session_state.current_data
@@ -225,4 +225,14 @@ if st.session_state.test_started and not st.session_state.finished and st.sessio
     st.progress((st.session_state.current_q + 1) / st.session_state.total)
 
     st.markdown('<div class="choices-container">', unsafe_allow_html=True)
-    for i,
+    for i, option in enumerate(st.session_state.options):
+        st.button(
+            str(option),
+            key=f"btn_{i}_{st.session_state.current_q}",
+            on_click=update_question,
+            args=(option,),
+        )
+    st.markdown('</div>', unsafe_allow_html=True)
+
+elif st.session_state.test_started and st.session_state.finished:
+    show_results()
