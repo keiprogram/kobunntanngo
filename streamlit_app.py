@@ -9,54 +9,47 @@ import os
 st.set_page_config(page_title="古文単語315テスト", layout="centered")
 
 # --------------------------------
-# カスタムCSS（和モダン配色）
+# シンプルCSS（最小限デザイン）
 # --------------------------------
 st.markdown(
     """
     <style>
     body {
-        font-family: 'Hiragino Kaku Gothic ProN', sans-serif;
-        background-color: #022033;
-        color: #ffae4b;
-    }
-    .test-container {
-        background-color: #033652;
-        border-radius: 15px;
-        padding: 20px;
-        margin-top: 20px;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        font-family: 'Arial', sans-serif;
+        background-color: #ffffff;
+        color: #222;
     }
     .choices-container button {
-        background-color: #ffae4b;
-        color: #022033;
-        border: none;
-        margin: 6px;
-        padding: 10px 15px;
-        border-radius: 10px;
-        font-weight: bold;
+        background-color: #f2f2f2;
+        color: #222;
+        border: 1px solid #ccc;
+        margin: 5px;
+        padding: 8px 12px;
+        border-radius: 6px;
         cursor: pointer;
+        font-size: 15px;
     }
     .choices-container button:hover {
-        background-color: #ffcc70;
-        color: #022033;
+        background-color: #e0e0e0;
     }
     .results-table {
         width: 100%;
         border-collapse: collapse;
-        color: #fff;
+        font-size: 14px;
     }
     .results-table th {
-        background-color: #ffae4b;
-        color: #022033;
-        padding: 10px;
+        background-color: #f2f2f2;
+        color: #333;
+        padding: 8px;
+        border-bottom: 1px solid #ccc;
     }
     .results-table td {
-        border: 1px solid #ffae4b;
-        padding: 8px;
+        border-bottom: 1px solid #ddd;
+        padding: 6px;
         text-align: center;
     }
     .stProgress > div > div > div > div {
-        background-color: #ffae4b;
+        background-color: #888;
     }
     </style>
     """,
@@ -87,41 +80,39 @@ if words_df.empty:
 # --------------------------------
 # サイドバー設定
 # --------------------------------
-st.sidebar.title("📖 テスト設定")
+st.sidebar.title("テスト設定")
 
-test_type = st.sidebar.radio("出題形式を選択", ["古文単語 → 意味", "意味 → 古文単語"])
+test_type = st.sidebar.radio("出題形式", ["古文単語 → 意味", "意味 → 古文単語"])
 
-# --- 出題範囲モード選択 ---
-range_mode = st.sidebar.radio("出題範囲の選び方", ["100語ごと", "自由指定"])
+# 出題範囲設定
+range_mode = st.sidebar.radio("出題範囲", ["100語ごと", "自由指定"])
 
 if range_mode == "100語ごと":
     ranges = [(i + 1, min(i + 100, len(words_df))) for i in range(0, len(words_df), 100)]
-    range_labels = [f"No.{start}〜No.{end}" for start, end in ranges]
-    selected_label = st.sidebar.selectbox("出題範囲を選択", range_labels)
-    selected_range = ranges[range_labels.index(selected_label)]
+    labels = [f"No.{start}〜No.{end}" for start, end in ranges]
+    selected_label = st.sidebar.selectbox("範囲を選択", labels)
+    selected_range = ranges[labels.index(selected_label)]
 else:
-    min_no = int(words_df["No."].min())
-    max_no = int(words_df["No."].max())
-    st.sidebar.write(f"範囲を指定してください（{min_no}〜{max_no}）")
+    min_no, max_no = int(words_df["No."].min()), int(words_df["No."].max())
     start_no = st.sidebar.number_input("開始No.", min_value=min_no, max_value=max_no, value=min_no)
     end_no = st.sidebar.number_input("終了No.", min_value=min_no, max_value=max_no, value=min_no+49)
     if start_no > end_no:
-        st.sidebar.error("⚠️ 開始No.は終了No.以下にしてください")
+        st.sidebar.error("開始No.は終了No.以下にしてください")
     selected_range = (start_no, end_no)
 
-# 選択範囲の単語を抽出
+# 出題対象データ
 filtered_df = words_df[(words_df["No."] >= selected_range[0]) & (words_df["No."] <= selected_range[1])]
 if filtered_df.empty:
-    st.warning("指定した範囲に単語が存在しません。")
+    st.warning("指定した範囲に単語がありません。")
     st.stop()
 
-num_questions = st.sidebar.slider("出題数を選択", 1, min(50, len(filtered_df)), 10)
+num_questions = st.sidebar.slider("出題数", 1, min(50, len(filtered_df)), 10)
 
 # --------------------------------
 # メインタイトル
 # --------------------------------
-st.title("📘 古文単語315テストアプリ")
-st.write("古文単語315の中から指定範囲でランダムに出題されます。")
+st.title("古文単語315テスト")
+st.caption("古文単語315の中からランダムに出題されます。")
 
 # --------------------------------
 # テスト開始処理
@@ -129,67 +120,56 @@ st.write("古文単語315の中から指定範囲でランダムに出題され�
 if st.button("テストを開始"):
     st.session_state.update({
         "test_started": True,
-        "correct_answers": 0,
-        "current_question": 0,
+        "correct": 0,
+        "current_q": 0,
         "finished": False,
-        "wrong_answers": [],
+        "wrong": [],
     })
-    
-    selected_questions = filtered_df.sample(num_questions).reset_index(drop=True)
+
+    selected = filtered_df.sample(num_questions).reset_index(drop=True)
     st.session_state.update({
-        "selected_questions": selected_questions,
-        "total_questions": len(selected_questions),
-        "current_question_data": selected_questions.iloc[0],
+        "selected": selected,
+        "total": len(selected),
+        "current_data": selected.iloc[0],
     })
-    
-    # 初回選択肢生成
+
     if test_type == "古文単語 → 意味":
-        other_opts = selected_questions[
-            selected_questions["意味"] != selected_questions.iloc[0]["意味"]
-        ]["意味"].sample(min(3, len(selected_questions)-1)).tolist()
+        opts = selected[selected["意味"] != selected.iloc[0]["意味"]]["意味"].sample(min(3, len(selected)-1)).tolist()
     else:
-        other_opts = selected_questions[
-            selected_questions["古文単語"] != selected_questions.iloc[0]["古文単語"]
-        ]["古文単語"].sample(min(3, len(selected_questions)-1)).tolist()
-    
-    other_opts = [opt for opt in other_opts if str(opt).strip() != ""]
-    correct_opt = selected_questions.iloc[0]["意味"] if test_type == "古文単語 → 意味" else selected_questions.iloc[0]["古文単語"]
-    options = other_opts + [correct_opt]
+        opts = selected[selected["古文単語"] != selected.iloc[0]["古文単語"]]["古文単語"].sample(min(3, len(selected)-1)).tolist()
+
+    correct_opt = selected.iloc[0]["意味"] if test_type == "古文単語 → 意味" else selected.iloc[0]["古文単語"]
+    options = opts + [correct_opt]
     np.random.shuffle(options)
     st.session_state.options = options
 
 # --------------------------------
 # 問題更新関数
 # --------------------------------
-def update_question(answer):
+def update_question(ans):
+    q_data = st.session_state.current_data
     if test_type == "古文単語 → 意味":
-        correct = st.session_state.current_question_data["意味"]
-        question = st.session_state.current_question_data["古文単語"]
+        correct = q_data["意味"]
+        q_text = q_data["古文単語"]
     else:
-        correct = st.session_state.current_question_data["古文単語"]
-        question = st.session_state.current_question_data["意味"]
+        correct = q_data["古文単語"]
+        q_text = q_data["意味"]
 
-    if answer == correct:
-        st.session_state.correct_answers += 1
+    if ans == correct:
+        st.session_state.correct += 1
     else:
-        st.session_state.wrong_answers.append((question, correct))
+        st.session_state.wrong.append((q_text, correct))
 
-    st.session_state.current_question += 1
+    st.session_state.current_q += 1
 
-    if st.session_state.current_question < st.session_state.total_questions:
-        st.session_state.current_question_data = st.session_state.selected_questions.iloc[st.session_state.current_question]
+    if st.session_state.current_q < st.session_state.total:
+        st.session_state.current_data = st.session_state.selected.iloc[st.session_state.current_q]
         if test_type == "古文単語 → 意味":
-            other_opts = st.session_state.selected_questions[
-                st.session_state.selected_questions["意味"] != st.session_state.current_question_data["意味"]
-            ]["意味"].sample(min(3, len(st.session_state.selected_questions)-1)).tolist()
+            opts = st.session_state.selected[st.session_state.selected["意味"] != st.session_state.current_data["意味"]]["意味"].sample(min(3, len(st.session_state.selected)-1)).tolist()
         else:
-            other_opts = st.session_state.selected_questions[
-                st.session_state.selected_questions["古文単語"] != st.session_state.current_question_data["古文単語"]
-            ]["古文単語"].sample(min(3, len(st.session_state.selected_questions)-1)).tolist()
-
-        other_opts = [opt for opt in other_opts if str(opt).strip() != ""]
-        correct_opt = st.session_state.current_question_data["意味"] if test_type == "古文単語 → 意味" else st.session_state.current_question_data["古文単語"]
-        options = other_opts + [correct_opt]
+            opts = st.session_state.selected[st.session_state.selected["古文単語"] != st.session_state.current_data["古文単語"]]["古文単語"].sample(min(3, len(st.session_state.selected)-1)).tolist()
+        correct_opt = st.session_state.current_data["意味"] if test_type == "古文単語 → 意味" else st.session_state.current_data["古文単語"]
+        options = opts + [correct_opt]
         np.random.shuffle(options)
         st.session_state.options = options
     else:
@@ -199,38 +179,32 @@ def update_question(answer):
 # 結果表示
 # --------------------------------
 def show_results():
-    correct = st.session_state.correct_answers
-    total = st.session_state.total_questions
-    st.subheader("✅ テスト結果")
+    correct = st.session_state.correct
+    total = st.session_state.total
+    st.subheader("テスト結果")
     st.write(f"正解数：{correct}/{total}")
     st.progress(correct / total)
     st.metric("正答率", f"{(correct/total)*100:.1f}%")
 
-    if st.session_state.wrong_answers:
-        df_wrong = pd.DataFrame(st.session_state.wrong_answers, columns=["問題", "正しい答え"])
+    if st.session_state.wrong:
+        df_wrong = pd.DataFrame(st.session_state.wrong, columns=["問題", "正答"])
         st.markdown(df_wrong.to_html(classes="results-table"), unsafe_allow_html=True)
     else:
-        st.success("全問正解です！🎉")
+        st.success("全問正解です！")
 
 # --------------------------------
 # 出題画面
 # --------------------------------
 if "test_started" in st.session_state and not st.session_state.finished:
-    st.markdown('<div class="test-container">', unsafe_allow_html=True)
-    q = st.session_state.current_question_data
-    st.subheader(f"第 {st.session_state.current_question + 1} 問 / {st.session_state.total_questions}")
+    q = st.session_state.current_data
+    st.subheader(f"第 {st.session_state.current_q + 1} 問 / {st.session_state.total}")
     st.write(q["古文単語"] if test_type == "古文単語 → 意味" else q["意味"])
-    
-    progress = (st.session_state.current_question + 1) / st.session_state.total_questions
-    st.progress(progress)
+    st.progress((st.session_state.current_q + 1) / st.session_state.total)
 
     st.markdown('<div class="choices-container">', unsafe_allow_html=True)
     for i, option in enumerate(st.session_state.options):
-        option_str = str(option).strip()
-        if option_str != "":
-            st.button(option_str, key=f"opt_{i}_{st.session_state.current_question}",
-                      on_click=update_question, args=(option_str,))
-    st.markdown('</div>', unsafe_allow_html=True)
+        st.button(str(option), key=f"btn_{i}_{st.session_state.current_q}",
+                  on_click=update_question, args=(option,))
     st.markdown('</div>', unsafe_allow_html=True)
 
 elif "test_started" in st.session_state and st.session_state.finished:
