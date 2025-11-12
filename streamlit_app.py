@@ -3,10 +3,14 @@ import pandas as pd
 import numpy as np
 import os
 
+# --------------------------------
 # アプリ設定
+# --------------------------------
 st.set_page_config(page_title="古文単語315テスト", layout="centered")
 
-# カスタムCSS（シンプル＋和風カラー）
+# --------------------------------
+# カスタムCSS（和モダン配色）
+# --------------------------------
 st.markdown(
     """
     <style>
@@ -59,14 +63,17 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+# --------------------------------
 # Excelデータ読み込み
+# --------------------------------
 @st.cache_data
 def load_data():
     file_path = "古文単語315_整形版_2.xlsx"
     if not os.path.exists(file_path):
-        st.error("❌ ファイルが見つかりません。Excelファイルを同じフォルダに置いてください。")
+        st.error("❌ Excelファイルが見つかりません。同じフォルダに置いてください。")
         return pd.DataFrame()
-    df = pd.read_excel(file_path)
+    
+    df = pd.read_excel(file_path).fillna("")  # 欠損値を空文字に
     df.columns = ["古文単語", "意味"]
     df.reset_index(inplace=True)
     df["No."] = df.index + 1
@@ -76,16 +83,23 @@ words_df = load_data()
 if words_df.empty:
     st.stop()
 
-# --- サイドバー設定 ---
+# --------------------------------
+# サイドバー設定
+# --------------------------------
 st.sidebar.title("📖 テスト設定")
 
 test_type = st.sidebar.radio("出題形式を選択", ["古文単語 → 意味", "意味 → 古文単語"])
 num_questions = st.sidebar.slider("出題数を選択", 5, min(50, len(words_df)), 10)
 
-# --- テスト開始 ---
+# --------------------------------
+# メインタイトル
+# --------------------------------
 st.title("📘 古文単語315テストアプリ")
 st.write("古文単語315の中からランダムに出題されます。")
 
+# --------------------------------
+# テスト開始処理
+# --------------------------------
 if st.button("テストを開始"):
     st.session_state.update({
         "test_started": True,
@@ -102,59 +116,59 @@ if st.button("テストを開始"):
         "current_question_data": selected_questions.iloc[0],
     })
     
-    # 選択肢を生成
+    # 初回選択肢生成
     if test_type == "古文単語 → 意味":
-        other_options = selected_questions[
+        other_opts = selected_questions[
             selected_questions["意味"] != selected_questions.iloc[0]["意味"]
         ]["意味"].sample(min(3, len(selected_questions)-1)).tolist()
-        options = other_options + [selected_questions.iloc[0]["意味"]]
+        options = other_opts + [selected_questions.iloc[0]["意味"]]
     else:
-        other_options = selected_questions[
+        other_opts = selected_questions[
             selected_questions["古文単語"] != selected_questions.iloc[0]["古文単語"]
         ]["古文単語"].sample(min(3, len(selected_questions)-1)).tolist()
-        options = other_options + [selected_questions.iloc[0]["古文単語"]]
+        options = other_opts + [selected_questions.iloc[0]["古文単語"]]
     
     np.random.shuffle(options)
     st.session_state.options = options
-    st.session_state.answer = None
 
-# --- 回答処理関数 ---
+# --------------------------------
+# 問題更新関数
+# --------------------------------
 def update_question(answer):
     if test_type == "古文単語 → 意味":
         correct = st.session_state.current_question_data["意味"]
-        question_word = st.session_state.current_question_data["古文単語"]
+        question = st.session_state.current_question_data["古文単語"]
     else:
         correct = st.session_state.current_question_data["古文単語"]
-        question_word = st.session_state.current_question_data["意味"]
-    
+        question = st.session_state.current_question_data["意味"]
+
     if answer == correct:
         st.session_state.correct_answers += 1
     else:
-        st.session_state.wrong_answers.append(
-            (question_word, correct)
-        )
+        st.session_state.wrong_answers.append((question, correct))
 
     st.session_state.current_question += 1
 
     if st.session_state.current_question < st.session_state.total_questions:
         st.session_state.current_question_data = st.session_state.selected_questions.iloc[st.session_state.current_question]
-        # 新しい選択肢生成
         if test_type == "古文単語 → 意味":
-            other_options = st.session_state.selected_questions[
+            other_opts = st.session_state.selected_questions[
                 st.session_state.selected_questions["意味"] != st.session_state.current_question_data["意味"]
             ]["意味"].sample(min(3, len(st.session_state.selected_questions)-1)).tolist()
-            options = other_options + [st.session_state.current_question_data["意味"]]
+            options = other_opts + [st.session_state.current_question_data["意味"]]
         else:
-            other_options = st.session_state.selected_questions[
+            other_opts = st.session_state.selected_questions[
                 st.session_state.selected_questions["古文単語"] != st.session_state.current_question_data["古文単語"]
             ]["古文単語"].sample(min(3, len(st.session_state.selected_questions)-1)).tolist()
-            options = other_options + [st.session_state.current_question_data["古文単語"]]
+            options = other_opts + [st.session_state.current_question_data["古文単語"]]
         np.random.shuffle(options)
         st.session_state.options = options
     else:
         st.session_state.finished = True
 
-# --- 結果表示 ---
+# --------------------------------
+# 結果表示関数
+# --------------------------------
 def show_results():
     correct = st.session_state.correct_answers
     total = st.session_state.total_questions
@@ -169,7 +183,9 @@ def show_results():
     else:
         st.success("全問正解です！🎉")
 
-# --- 出題部分 ---
+# --------------------------------
+# 出題画面
+# --------------------------------
 if "test_started" in st.session_state and not st.session_state.finished:
     st.markdown('<div class="test-container">', unsafe_allow_html=True)
     q = st.session_state.current_question_data
@@ -181,8 +197,12 @@ if "test_started" in st.session_state and not st.session_state.finished:
 
     st.markdown('<div class="choices-container">', unsafe_allow_html=True)
     for i, option in enumerate(st.session_state.options):
-        st.button(option, key=f"opt_{i}_{st.session_state.current_question}", on_click=update_question, args=(option,))
+        # ✅ NaN・None・数値などを安全に文字列化
+        option_str = str(option) if pd.notna(option) else ""
+        st.button(option_str, key=f"opt_{i}_{st.session_state.current_question}",
+                  on_click=update_question, args=(option_str,))
     st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
+
 elif "test_started" in st.session_state and st.session_state.finished:
     show_results()
