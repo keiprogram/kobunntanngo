@@ -73,8 +73,10 @@ def load_data():
         st.error("❌ Excelファイルが見つかりません。同じフォルダに置いてください。")
         return pd.DataFrame()
     
-    df = pd.read_excel(file_path).fillna("")  # 欠損値を空文字に
+    # Excel読み込み & 空欄削除
+    df = pd.read_excel(file_path).fillna("")
     df.columns = ["古文単語", "意味"]
+    df = df[(df["古文単語"].str.strip() != "") & (df["意味"].str.strip() != "")]
     df.reset_index(inplace=True)
     df["No."] = df.index + 1
     return df
@@ -87,7 +89,6 @@ if words_df.empty:
 # サイドバー設定
 # --------------------------------
 st.sidebar.title("📖 テスト設定")
-
 test_type = st.sidebar.radio("出題形式を選択", ["古文単語 → 意味", "意味 → 古文単語"])
 num_questions = st.sidebar.slider("出題数を選択", 5, min(50, len(words_df)), 10)
 
@@ -121,13 +122,15 @@ if st.button("テストを開始"):
         other_opts = selected_questions[
             selected_questions["意味"] != selected_questions.iloc[0]["意味"]
         ]["意味"].sample(min(3, len(selected_questions)-1)).tolist()
-        options = other_opts + [selected_questions.iloc[0]["意味"]]
     else:
         other_opts = selected_questions[
             selected_questions["古文単語"] != selected_questions.iloc[0]["古文単語"]
         ]["古文単語"].sample(min(3, len(selected_questions)-1)).tolist()
-        options = other_opts + [selected_questions.iloc[0]["古文単語"]]
     
+    # ✅ 空欄除外 & 正解追加
+    other_opts = [opt for opt in other_opts if str(opt).strip() != ""]
+    correct_opt = selected_questions.iloc[0]["意味"] if test_type == "古文単語 → 意味" else selected_questions.iloc[0]["古文単語"]
+    options = other_opts + [correct_opt]
     np.random.shuffle(options)
     st.session_state.options = options
 
@@ -149,18 +152,23 @@ def update_question(answer):
 
     st.session_state.current_question += 1
 
+    # 次の問題へ
     if st.session_state.current_question < st.session_state.total_questions:
         st.session_state.current_question_data = st.session_state.selected_questions.iloc[st.session_state.current_question]
+
         if test_type == "古文単語 → 意味":
             other_opts = st.session_state.selected_questions[
                 st.session_state.selected_questions["意味"] != st.session_state.current_question_data["意味"]
             ]["意味"].sample(min(3, len(st.session_state.selected_questions)-1)).tolist()
-            options = other_opts + [st.session_state.current_question_data["意味"]]
         else:
             other_opts = st.session_state.selected_questions[
                 st.session_state.selected_questions["古文単語"] != st.session_state.current_question_data["古文単語"]
             ]["古文単語"].sample(min(3, len(st.session_state.selected_questions)-1)).tolist()
-            options = other_opts + [st.session_state.current_question_data["古文単語"]]
+
+        # ✅ 空欄除外
+        other_opts = [opt for opt in other_opts if str(opt).strip() != ""]
+        correct_opt = st.session_state.current_question_data["意味"] if test_type == "古文単語 → 意味" else st.session_state.current_question_data["古文単語"]
+        options = other_opts + [correct_opt]
         np.random.shuffle(options)
         st.session_state.options = options
     else:
@@ -197,10 +205,10 @@ if "test_started" in st.session_state and not st.session_state.finished:
 
     st.markdown('<div class="choices-container">', unsafe_allow_html=True)
     for i, option in enumerate(st.session_state.options):
-        # ✅ NaN・None・数値などを安全に文字列化
-        option_str = str(option) if pd.notna(option) else ""
-        st.button(option_str, key=f"opt_{i}_{st.session_state.current_question}",
-                  on_click=update_question, args=(option_str,))
+        option_str = str(option).strip()
+        if option_str != "":
+            st.button(option_str, key=f"opt_{i}_{st.session_state.current_question}",
+                      on_click=update_question, args=(option_str,))
     st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
