@@ -73,7 +73,6 @@ def load_data():
         st.error("❌ Excelファイルが見つかりません。同じフォルダに置いてください。")
         return pd.DataFrame()
     
-    # Excel読み込み & 空欄削除
     df = pd.read_excel(file_path).fillna("")
     df.columns = ["古文単語", "意味"]
     df = df[(df["古文単語"].str.strip() != "") & (df["意味"].str.strip() != "")]
@@ -89,14 +88,40 @@ if words_df.empty:
 # サイドバー設定
 # --------------------------------
 st.sidebar.title("📖 テスト設定")
+
 test_type = st.sidebar.radio("出題形式を選択", ["古文単語 → 意味", "意味 → 古文単語"])
-num_questions = st.sidebar.slider("出題数を選択", 5, min(50, len(words_df)), 10)
+
+# --- 出題範囲モード選択 ---
+range_mode = st.sidebar.radio("出題範囲の選び方", ["100語ごと", "自由指定"])
+
+if range_mode == "100語ごと":
+    ranges = [(i + 1, min(i + 100, len(words_df))) for i in range(0, len(words_df), 100)]
+    range_labels = [f"No.{start}〜No.{end}" for start, end in ranges]
+    selected_label = st.sidebar.selectbox("出題範囲を選択", range_labels)
+    selected_range = ranges[range_labels.index(selected_label)]
+else:
+    min_no = int(words_df["No."].min())
+    max_no = int(words_df["No."].max())
+    st.sidebar.write(f"範囲を指定してください（{min_no}〜{max_no}）")
+    start_no = st.sidebar.number_input("開始No.", min_value=min_no, max_value=max_no, value=min_no)
+    end_no = st.sidebar.number_input("終了No.", min_value=min_no, max_value=max_no, value=min_no+49)
+    if start_no > end_no:
+        st.sidebar.error("⚠️ 開始No.は終了No.以下にしてください")
+    selected_range = (start_no, end_no)
+
+# 選択範囲の単語を抽出
+filtered_df = words_df[(words_df["No."] >= selected_range[0]) & (words_df["No."] <= selected_range[1])]
+if filtered_df.empty:
+    st.warning("指定した範囲に単語が存在しません。")
+    st.stop()
+
+num_questions = st.sidebar.slider("出題数を選択", 1, min(50, len(filtered_df)), 10)
 
 # --------------------------------
 # メインタイトル
 # --------------------------------
 st.title("📘 古文単語315テストアプリ")
-st.write("古文単語315の中からランダムに出題されます。")
+st.write("古文単語315の中から指定範囲でランダムに出題されます。")
 
 # --------------------------------
 # テスト開始処理
@@ -110,7 +135,7 @@ if st.button("テストを開始"):
         "wrong_answers": [],
     })
     
-    selected_questions = words_df.sample(num_questions).reset_index(drop=True)
+    selected_questions = filtered_df.sample(num_questions).reset_index(drop=True)
     st.session_state.update({
         "selected_questions": selected_questions,
         "total_questions": len(selected_questions),
@@ -127,7 +152,6 @@ if st.button("テストを開始"):
             selected_questions["古文単語"] != selected_questions.iloc[0]["古文単語"]
         ]["古文単語"].sample(min(3, len(selected_questions)-1)).tolist()
     
-    # ✅ 空欄除外 & 正解追加
     other_opts = [opt for opt in other_opts if str(opt).strip() != ""]
     correct_opt = selected_questions.iloc[0]["意味"] if test_type == "古文単語 → 意味" else selected_questions.iloc[0]["古文単語"]
     options = other_opts + [correct_opt]
@@ -152,10 +176,8 @@ def update_question(answer):
 
     st.session_state.current_question += 1
 
-    # 次の問題へ
     if st.session_state.current_question < st.session_state.total_questions:
         st.session_state.current_question_data = st.session_state.selected_questions.iloc[st.session_state.current_question]
-
         if test_type == "古文単語 → 意味":
             other_opts = st.session_state.selected_questions[
                 st.session_state.selected_questions["意味"] != st.session_state.current_question_data["意味"]
@@ -165,7 +187,6 @@ def update_question(answer):
                 st.session_state.selected_questions["古文単語"] != st.session_state.current_question_data["古文単語"]
             ]["古文単語"].sample(min(3, len(st.session_state.selected_questions)-1)).tolist()
 
-        # ✅ 空欄除外
         other_opts = [opt for opt in other_opts if str(opt).strip() != ""]
         correct_opt = st.session_state.current_question_data["意味"] if test_type == "古文単語 → 意味" else st.session_state.current_question_data["古文単語"]
         options = other_opts + [correct_opt]
@@ -175,7 +196,7 @@ def update_question(answer):
         st.session_state.finished = True
 
 # --------------------------------
-# 結果表示関数
+# 結果表示
 # --------------------------------
 def show_results():
     correct = st.session_state.correct_answers
